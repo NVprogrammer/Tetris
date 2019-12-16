@@ -14,7 +14,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 import numpy as np
 import random as r
-
+import math
 height = 600;
 width = 300;
 field_width = 10
@@ -100,10 +100,15 @@ def set_unUnsed():
     for i in mat:
         for j in i:
             j[1] = 0
-
-
-def show_mat():
+def clear_Used():# активные ячейки становятся [0,0]
     global mat
+    for i in mat:
+        for j in i:
+            if(j[1] == 1):
+                j[1] = 0
+                j[0] = 0
+
+def show_mat(mat=mat):
     for i in mat:
         for j in i:
             print(j, end=' ')
@@ -114,7 +119,6 @@ def rot_square_fall():
     global f
     for i in range(len(f.rotate_square)):
         f.rotate_square[i][0] += 1
-
 
 def rot_square_left():
     global f
@@ -143,9 +147,59 @@ def changeMat():
     f.gen_F()
     if (not fall):
         score()
+def get_active_arr():# возвращает массив индексов активных элементов
+    global mat
+    global field_height
+    global field_width
+    global f
+    arr1 = []  # массив с индексами активных элемено
+
+    for i in range(field_height):
+        for j in range(field_width):
+            if (mat[i][j][1] == 1):
+                arr1.append(list((i, j)))
+    return arr1
 
 
-# show_mat()
+
+def detect_collision():
+    global mat
+    global field_height
+    global field_width
+    global f
+    arr1=get_active_arr()# массив с индексами активных элеменов
+    collision= False # столкновение с фигурой
+    for k in arr1:
+        i=k[0]
+        j=k[1]
+        left=[];right=[];up=[];down=[]# left - соседняя ячейка слева от mat[i][j]
+        # присвоем значения избежав выхода за границы массива
+        if (0<=j-1<field_width):
+            left=mat[i][j-1]
+        else:
+            left=[100,0]
+        if (0<=j+1<field_width):
+            right=mat[i][j+1]
+        else:
+            right = [100, 0]
+        if (0<=i-1<field_height):
+            up=mat[i-1][j]
+        else:
+            up = [0, 0]
+        if (0<=i+1<field_height):
+            down=mat[i+1][j]
+        else:
+            down = [100, 0]
+        if(down[0] > 0 and down[1] == 0 ):
+            collision=True
+        if(left[0] > 0 and left[1] == 0):# если есть цвет  слева и он принадлежит неактивной фигуре или за пределом то нельзя перемещаться влево
+            f.can_left=False
+        if (right[0] > 0 and right[1] == 0):
+            f.can_right = False
+    return collision
+            
+        
+    # show_mat()
 # print(f.rotate_square)
 # print(fall)
 # print("///////////////////////////////////////////")
@@ -153,29 +207,21 @@ def figure_fall():
     global mat
     global fall
     global f
+
     if (fall):
+        if (detect_collision()):  # столкновение с фигурой
+            fig_list.append(Figures())
+            f = fig_list.pop(0)
+            set_unUnsed()
+            fall = False
         for i in range(field_height - 1, -1, -1):
             if (fall):
                 for j in range(field_width):
-                    if (mat[i][j][1] == 1 and i < field_height - 1):
+                    if (mat[i][j][1] == 1 and i < field_height - 1):# если активна и не на дне меняем местами
                         mat[i + 1][j], mat[i][j] = mat[i][j], [0, 0]
 
-                    elif (mat[i][j][1] == 1 and i == field_height - 1):
-                        set_unUnsed()
-                        f = fig_list.append(Figures())
-                        f = fig_list.pop(0)
-                        mat[i][j][1] = 0
-                        fall = False
-                        is_Used = True
-                        break
-                    elif (sum(mat[i][j]) > 0 and mat[i - 1][j][1] == 1):
-                        set_unUnsed()
-                        f = fig_list.append(Figures())
-                        f = fig_list.pop(0)
-                        mat[i - 1][j][1] = 0
-                        fall = False
-                        is_Used = True
-                        break
+
+
     rot_square_fall()
 
 
@@ -184,10 +230,15 @@ def loop(dt):
     global game_Over
     global player_score
     global ss
+    global is_Used
+
+    # print(is_Used)
     if (is_Game and not game_Over):  # цикл начинается когда нажата кнопка new game
         canvas.clear()
         is_lose()
         changeMat()
+        # show_mat()
+        # print()
         draw()
     else:
         pass
@@ -217,13 +268,16 @@ def score():
 def is_lose():
     global game_Over
     global mat
+    # print(mat[0],end=" ")
     for j in mat[0]:
+        # print(j[0],end=" ")
         if (j[0] > 0 and not fall):
             game_Over = True
-
+    # print()
 
 class Figures():
     def gen_F(self):
+
         if (self.a == 0):
             return self.f_line()
         elif (self.a == 1):
@@ -557,7 +611,6 @@ class Figures():
             else:
                 figure_fall()
 
-
 f = Figures()
 
 
@@ -581,14 +634,17 @@ class FirstSc(Screen):
         self.add_widget(self.b())
 
 
+
 class Figure_Actions:
     def rot90(self):
         global f
         global mat
         matrix = []
         matrix_n = []
+        show_mat(mat)
         for i in f.rotate_square:
             matrix.append(mat[i[0]][i[1]])
+        print(f.rotate_square)
         print('matrix', matrix)
         i = 0
         for _ in range(len(matrix)):
@@ -610,40 +666,30 @@ class Figure_Actions:
             mat[i[0]][i[1]] = res_arr[k]
             k += 1
 
+
     def to_right(self):
         global mat
+        global field_height
+        global field_width
+        detect_collision()  # вызываем чтобы проверь можно ли перемещаться
         if (f.can_right):
             rot_square_right()
-            f.can_left = True
             for j in range(field_width - 1, -1, -1):
-                if (fall and f.can_right):
-                    for i in range(field_height - 1, -1, -1):
-                        if (mat[i][j][1] == 1 and j == field_width - 1):
-                            f.can_right = False
-                            break
-                        elif (mat[i][j][1] == 1 and j < field_width - 1):
-                            mat[i][j + 1], mat[i][j] = mat[i][j], [0, 0]
-                        elif (sum(mat[i][j]) > 0 and mat[i][j - 1][1] == 1):
-                            f.can_right = False
-                            break
+                for i in range(field_height - 1, -1, -1):
+                    if(mat[i][j][1]==1):
+                        mat[i][j + 1], mat[i][j] = mat[i][j], [0, 0]
 
     def to_left(self):
         global mat
+        global field_height
+        global field_width
+        detect_collision()# вызываем чтобы проверь можно ли перемещаться
         if (f.can_left):
             rot_square_left()
-            f.can_right = True
             for j in range(field_width):
-                if (fall and f.can_left):
                     for i in range(field_height):
-                        if (mat[i][j][1] == 1 and j == 0):
-                            f.can_left = False
-                            break
-                        elif (mat[i][j][1] == 1 and j > 0):
+                        if (mat[i][j][1] == 1):
                             mat[i][j - 1], mat[i][j] = mat[i][j], [0, 0]
-                        elif (sum(mat[i][j - 1]) > 0 and mat[i][j][1] == 1):
-                            f.can_left = False
-                            break
-
 
 class SecondSc(Screen, Widget):
 
